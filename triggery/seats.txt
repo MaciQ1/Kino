@@ -1,0 +1,35 @@
+CREATE OR REPLACE TRIGGER trg_check_duplicate_seat
+BEFORE INSERT OR UPDATE ON seats
+FOR EACH ROW
+DECLARE
+    PRAGMA AUTONOMOUS_TRANSACTION;
+    v_count NUMBER;
+BEGIN
+    -- Sprawdzenie, czy istnieje już miejsce o tym samym numerze rzędu i miejscu w rzędzie w tej samej sali
+    IF :NEW.id IS NULL THEN
+        -- Dla nowych rekordów (INSERT)
+        SELECT COUNT(*)
+        INTO v_count
+        FROM seats
+        WHERE screening_room_id = :NEW.screening_room_id
+        AND row_number = :NEW.row_number
+        AND seat_in_row = :NEW.seat_in_row;
+    ELSE
+        -- Dla aktualizacji istniejących rekordów (UPDATE)
+        SELECT COUNT(*)
+        INTO v_count
+        FROM seats
+        WHERE screening_room_id = :NEW.screening_room_id
+        AND row_number = :NEW.row_number
+        AND seat_in_row = :NEW.seat_in_row
+        AND id != :NEW.id;
+    END IF;
+
+    -- Jeśli istnieje, zgłoszenie wyjątku
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Miejsce o tym samym numerze rzędu i miejscu w rzędzie już istnieje w tej sali kinowej.');
+    END IF;
+    -- Potwierdzenie niezależnej transakcji
+    COMMIT;
+END;
+/

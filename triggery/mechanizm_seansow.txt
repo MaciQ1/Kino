@@ -1,0 +1,24 @@
+create or replace TRIGGER trg_check_seance_overlap
+BEFORE INSERT OR UPDATE ON seances
+FOR EACH ROW
+DECLARE
+    v_count INTEGER;
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_count
+    FROM seances
+    WHERE screening_room_id = :NEW.screening_room_id
+      AND (
+          (:NEW.start_time BETWEEN start_time AND end_time)
+          OR (:NEW.end_time BETWEEN start_time AND end_time)
+          OR (start_time BETWEEN :NEW.start_time AND :NEW.end_time)
+          OR (end_time BETWEEN :NEW.start_time AND :NEW.end_time)
+      )
+      AND (:NEW.id IS NULL OR id != :NEW.id); -- Wyklucz bieżący rekord tylko w przypadku aktualizacji
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20003, 'Seans koliduje z innym seansem w tej samej sali kinowej.');
+    END IF;
+END;
+/
